@@ -1,0 +1,167 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(dplyr)
+library(scales)
+library(ggplot2)
+library(corrplot)
+library(gridExtra)
+library(ggthemes)
+library(caret)
+library(MASS)
+library(randomForest)
+library(party)
+library(MLmetrics)
+library(rpart)
+library(rpart.plot)
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+bankChurn <- read.csv(file = 'Churn_Modelling.csv')
+bankChurn = subset(bankChurn, select=-c(Surname, CustomerId, RowNumber))
+bankChurn$Exited <- as.factor(bankChurn$Exited)
+```
+
+```{r}
+tenureCounts <- table(bankChurn$Tenure)
+barplot(
+  tenureCounts, 
+  main="Tenure Distribution",
+  xlab="Tenure",
+  col="skyblue",
+  border=F
+  )
+```
+
+```{r}
+# percentage exited for each tenure
+tenure <- bankChurn %>% count(Exited, Tenure)
+tenure$Exited <- as.factor(tenure$Exited)
+tenure$Exited <- ifelse(tenure$Exited == 0, "Did not exit", "Exited")   
+
+ggplot(tenure, aes(fill=Exited, y=n, x=Tenure))+ 
+  geom_bar(position="fill", stat="identity")+
+  scale_fill_manual(values=c("skyblue", scales::alpha("red", .5)))
+
+```
+```{r}
+# boxplot for tenure against exited
+boxplot(
+  Tenure ~ Exited, 
+  data=bankChurn, 
+  main="Tenure against Exited",
+  xlab="Exited",
+  ylab="Tenure"
+  )
+```
+```{r}
+numProdCounts <- table(bankChurn$NumOfProducts)
+barplot(
+  numProdCounts, 
+  main="Number of products Distribution",
+  xlab="Number of products",
+  col="skyblue",
+  border=F
+  )
+```
+
+```{r}
+# percentage exited against number of products
+numProducts <- bankChurn %>% count(Exited, NumOfProducts)
+numProducts$Exited <- as.factor(numProducts$Exited)
+numProducts$Exited <- ifelse(numProducts$Exited == 0, "Did not exit", "Exited")   
+
+ggplot(numProducts, aes(fill=Exited, y=n, x=NumOfProducts))+ 
+  geom_bar(position="fill", stat="identity")+
+  scale_fill_manual(values=c("skyblue", scales::alpha("red", .5)))
+```
+```{r}
+# train test split
+idx = createDataPartition(bankChurn$Exited, p=0.7, list=FALSE)
+set.seed(42)
+train = bankChurn[idx,]
+test = bankChurn[-idx,]
+
+dim(train); dim(test)
+```
+
+```{r}
+# logistic regression to predict churn
+logreg = glm(Exited ~ ., 
+             family=binomial(link="logit"),
+             data=train
+             )
+print(summary(logreg))
+```
+```{r}
+# feature importance: the steeper the drop in deviance the more important the feature
+anova(logreg, test="Chisq")
+```
+```{r}
+# evaluating logistic regression model against test data
+results <- predict(logreg,newdata=test,type='response')
+results <- ifelse(results > 0.5,1,0)
+misclassError <- mean(results != test$Exited)
+print(paste('Logistic Regression Accuracy',1-misclassError))
+```
+```{r}
+## To find out what are the important features 
+tree <- ctree(Exited~EstimatedSalary+IsActiveMember+HasCrCard+NumOfProducts+Balance+Tenure,train)
+plot(tree)
+```
+```{r}
+tree
+```
+```{r}
+cart <- rpart(Exited ~ ., 
+              data=train, 
+              method = 'anova', 
+              control=rpart.control(minsplit = 2, cp = 0)
+              )
+plotcp(cart)
+```
+```{r}
+CVerror.cap <- cart$cptable[which.min(cart$cptable[,"xerror"]), "xerror"] + cart$cptable[which.min(cart$cptable[,"xerror"]), "xstd"]
+
+# Find the optimal CP region whose CV error is just below CVerror.cap in maximal tree cart1.
+i <- 1; j<- 4
+while (cart$cptable[i,j] > CVerror.cap) {
+  i <- i + 1
+}
+
+# Get geometric mean of the two identified CP values in the optimal region if optimal tree has at least one split.
+cp.opt = ifelse(i > 1, sqrt(cart$cptable[i,1] * cart$cptable[i-1,1]), 1)
+```
+
+```{r}
+cart.opt <- prune(cart, cp = cp.opt)
+cart.opt$variable.importance
+
+```
+
+```{r}
+tree.pred <- predict(tree, test)
+table.pred <- table(Predicted = tree.pred, Actual = test$Exited)
+print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
+```
+```{r}
+# Note: accuracy is 80% because of unbalanced dataset; most data points have Exited = 0. From the confusion matrix, we can see that there are a lot of false negatives
+print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual = test$Exited)
+```
+
