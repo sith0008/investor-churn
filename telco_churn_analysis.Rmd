@@ -1,6 +1,6 @@
 ---
 title: "R Notebook"
-output: html_notebook
+#output: html_notebook
 ---
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
@@ -34,8 +34,178 @@ library(rpart.plot)
 ```
 
 ```{r}
-telcoChurn <- read.csv(file = 'telco_churn.csv')
+telcoChurn <- read.csv(file = 'telco_churn_edited.csv')
 telcoChurn = subset(telcoChurn, select=-c(customerID))
 telcoChurn$Churn <- as.factor(telcoChurn$Churn)
+na.omit(telcoChurn)
+
 ```
+
+```{r}
+tenureCounts <- table(telcoChurn$tenure)
+barplot(
+  tenureCounts,
+  main="Tenure Distribution",
+  xlab="Tenure",
+  col="skyblue",
+  border=F
+)
+```
+
+```{r}
+# percentage exited for each tenure
+tenure <- telcoChurn %>% count(Churn, tenure)
+tenure$Churn <- as.factor(tenure$Churn)
+tenure$Churn <- ifelse(tenure$Churn == "No", "No Churn", "Churned")
+
+ggplot(tenure, aes(fill=Churn, y=n, x=tenure))+
+  geom_bar(position="fill", stat="identity")+
+  scale_fill_manual(values = c("skyblue", scales::alpha("red", .5)))
+
+```
+
+```{r}
+ContractType <- table(telcoChurn$Contract)
+barplot(
+  ContractType,
+  main="Contract Type Distribution",
+  xlab="Contract",
+  col="skyblue",
+  border=F
+)
+```
+
+```{r}
+# percentage exited for each contract type
+Contract <- telcoChurn %>% count(Churn, Contract)
+Contract$Churn <- as.factor(Contract$Churn)
+Contract$Churn <- ifelse(Contract$Churn == "No", "No Churn", "Churned")
+
+ggplot(Contract, aes(fill=Churn, y=n, x=Contract))+
+  geom_bar(position="fill", stat="identity")+
+  scale_fill_manual(values = c("skyblue", scales::alpha("red", .5)))
+```
+
+```{r}
+MonthlyChargesCounts <- table(telcoChurn$MonthlyChargesIntervals)
+barplot(
+  MonthlyChargesCounts,
+  main="Monthly Charges Distribution",
+  xlab="Monthly Charges",
+  col="skyblue",
+  border=F
+)
+```
+
+```{r}
+# percentage exited for Montly Charge Range
+MonthlyChargesIntervals <- telcoChurn %>% count(Churn, MonthlyChargesIntervals)
+MonthlyChargesIntervals$Churn <- as.factor(MonthlyChargesIntervals$Churn)
+MonthlyChargesIntervals$Churn <- ifelse(MonthlyChargesIntervals$Churn == "No", "No Churn", "Churned")
+
+
+ggplot(MonthlyChargesIntervals, aes(fill=Churn, y=n, x=MonthlyChargesIntervals))+
+  geom_bar(position="fill", stat="identity")+
+  scale_fill_manual(values = c("skyblue", scales::alpha("red", .5)))
+```
+
+```{r}
+TotalChargesCounts <- table(telcoChurn$TotalChargesIntervals)
+barplot(
+  TotalChargesCounts,
+  main="Total Charges Distribution",
+  xlab="Total Charges",
+  col="skyblue",
+  border=F
+)
+```
+
+```{r}
+# percentage exited for Montly Charge Range
+TotalChargesIntervals <- telcoChurn %>% count(Churn, TotalChargesIntervals)
+TotalChargesIntervals$Churn <- as.factor(TotalChargesIntervals$Churn)
+TotalChargesIntervals$Churn <- ifelse(TotalChargesIntervals$Churn == "No", "No Churn", "Churned")
+
+
+ggplot(TotalChargesIntervals, aes(fill=Churn, y=n, x=TotalChargesIntervals))+
+  geom_bar(position="fill", stat="identity")+
+  scale_fill_manual(values = c("skyblue", scales::alpha("red", .5)))
+```
+
+```{r}
+# train test split
+idx = createDataPartition(telcoChurn$Churn, p=0.7, list=FALSE)
+set.seed(42)
+train = telcoChurn[idx,]
+test = telcoChurn[-idx,]
+
+dim(train); dim(test)
+```
+
+```{r}
+# logistic regression to predict churn
+logreg = glm(Churn ~ .,
+             family=binomial(link="logit"),
+             data=train)
+
+print(summary(logreg))
+
+```
+```{r}
+# feature importance: the steeper the drop in deviance the more important the feature
+anova(logreg, test="Chisq")
+```
+```{r}
+# evaluating logistic regression model against test data
+results <- predict(logreg,newdata=test,type='response')
+results <- ifelse(results > 0.5,1,0)
+misclassError <- mean(results != test$Churn)
+print(paste('Logistic Regression Accuracy',1-misclassError))
+```
+```{r}
+## To find out what are the important features 
+tree <- ctree(Churn~tenure+MonthlyCharges+TotalCharges, train)
+plot(tree)
+```
+```{r}
+tree
+```
+```{r}
+cart <- rpart(Churn ~ ., 
+              data=train, 
+              method = 'anova', 
+              control=rpart.control(minsplit = 2, cp = 0)
+              )
+plotcp(cart)
+```
+```{r}
+CVerror.cap <- cart$cptable[which.min(cart$cptable[,"xerror"]), "xerror"] + cart$cptable[which.min(cart$cptable[,"xerror"]), "xstd"]
+# Find the optimal CP region whose CV error is just below CVerror.cap in maximal tree cart1.
+i <- 1; j<- 4
+while (cart$cptable[i,j] > CVerror.cap) {
+  i <- i + 1
+}
+# Get geometric mean of the two identified CP values in the optimal region if optimal tree has at least one split.
+cp.opt = ifelse(i > 1, sqrt(cart$cptable[i,1] * cart$cptable[i-1,1]), 1)
+```
+
+```{r}
+cart.opt <- prune(cart, cp = cp.opt)
+cart.opt$variable.importance
+```
+
+```{r}
+tree.pred <- predict(tree, test)
+table.pred <- table(Predicted = tree.pred, Actual = test$Churn)
+print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
+```
+```{r}
+# Note: accuracy is 80% because of unbalanced dataset; most data points have Exited = 0. From the confusion matrix, we can see that there are a lot of false negatives
+print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual = test$Churn)
+```
+
+
+
+
+
 
