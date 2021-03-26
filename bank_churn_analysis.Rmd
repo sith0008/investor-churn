@@ -70,6 +70,86 @@ boxplot(
   ylab="Tenure"
   )
 ```
+
+```{r}
+# age distribution
+hist(
+  main="Age distribution", 
+  xlab="Age", 
+  bankChurn$Age, 
+  xlim=c(10,80), 
+  col='skyblue',
+  border=F)
+```
+
+```{r}
+# boxplot for age against exited
+boxplot(
+  Age ~ Exited, 
+  data=bankChurn, 
+  main="Age against Exited",
+  xlab="Exited",
+  ylab="Age"
+  )
+```
+
+```{r}
+# balance distribution
+hist(
+  main="Balance distribution", 
+  xlab="Balance", 
+  bankChurn$Balance, 
+  xlim=c(0,200000), 
+  col='skyblue',
+  border=F)
+```
+
+```{r}
+# boxplot for balance against exited
+boxplot(
+  Balance ~ Exited, 
+  data=bankChurn, 
+  main="Balance against Exited",
+  xlab="Exited",
+  ylab="Balance"
+  )
+```
+
+```{r}
+# salary distribution
+hist(
+  main="Salary distribution", 
+  xlab="Salary", 
+  bankChurn$EstimatedSalary, 
+  xlim=c(0,200000), 
+  col='skyblue',
+  border=F)
+```
+
+```{r}
+# boxplot for salary against exited
+boxplot(
+  EstimatedSalary ~ Exited, 
+  data=bankChurn, 
+  main="Salary against Exited",
+  xlab="Exited",
+  ylab="Salary"
+  )
+```
+
+```{r}
+# percentage exited against is_active
+isActive <- bankChurn %>% count(Exited, IsActiveMember)
+isActive$Exited <- as.factor(isActive$Exited)
+isActive$Exited <- ifelse(isActive$Exited == 0, "Did not exit", "Exited")   
+
+ggplot(isActive, aes(fill=Exited, y=n, x=IsActiveMember))+ 
+  geom_bar(position="fill", stat="identity")+
+  scale_fill_manual(values=c("skyblue", scales::alpha("red", .5)))
+```
+
+
+
 ```{r}
 numProdCounts <- table(bankChurn$NumOfProducts)
 barplot(
