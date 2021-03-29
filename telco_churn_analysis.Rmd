@@ -204,7 +204,99 @@ print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
 print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual = test$Churn)
 ```
 
+```{r}
+# r forest
+str(telcoChurn)
+```
 
+```{r}
+telcoChurn$gender <- as.factor(telcoChurn$gender)
+telcoChurn$SeniorCitizen <- as.factor(telcoChurn$SeniorCitizen)
+telcoChurn$Partner <- as.factor(telcoChurn$Partner)
+telcoChurn$Dependents <- as.factor(telcoChurn$Dependents)
+telcoChurn$PhoneService <- as.factor(telcoChurn$PhoneService)
+telcoChurn$MultipleLines <- as.factor(telcoChurn$MultipleLines)
+telcoChurn$InternetService <- as.factor(telcoChurn$InternetService)
+telcoChurn$OnlineSecurity <- as.factor(telcoChurn$OnlineSecurity)
+telcoChurn$OnlineBackup <- as.factor(telcoChurn$OnlineBackup)
+telcoChurn$DeviceProtection <- as.factor(telcoChurn$DeviceProtection)
+telcoChurn$TechSupport <- as.factor(telcoChurn$TechSupport)
+telcoChurn$StreamingTV <- as.factor(telcoChurn$StreamingTV)
+telcoChurn$StreamingMovies <- as.factor(telcoChurn$StreamingMovies)
+telcoChurn$Contract <- as.factor(telcoChurn$Contract)
+telcoChurn$PaperlessBilling <- as.factor(telcoChurn$PaperlessBilling)
+telcoChurn$PaymentMethod <- as.factor(telcoChurn$PaymentMethod)
+telcoChurn$MonthlyChargesIntervals <- as.factor(telcoChurn$MonthlyChargesIntervals)
+telcoChurn$TotalChargesIntervals <- as.factor(telcoChurn$TotalChargesIntervals)
+telcoChurn$OnlineSecurity <- as.factor(telcoChurn$OnlineSecurity)
+```
+
+```{r}
+# r forest
+str(telcoChurn)
+```
+
+```{r}
+set.seed(42)
+
+# iterations effective from 5 - 7
+telcoChurn.imputed <- rfImpute(Churn ~ ., data = telcoChurn, iter = 6)
+```
+```{r}
+rfmodel <- randomForest(Churn ~ ., data = telcoChurn.imputed, proximity = TRUE)
+```
+
+```{r}
+rfmodel
+```
+
+```{r}
+# model based on err.rate matrix: [OOB, No, Yes]
+oob.error.data <- data.frame(Trees=rep(1:nrow(rfmodel$err.rate), times=3), Type=rep(c("OOB", "No", "Yes"), each=nrow(rfmodel$err.rate)), Error=c(rfmodel$err.rate[,"OOB"], rfmodel$err.rate[,"No"], rfmodel$err.rate[,"Yes"]))
+
+ggplot(data=oob.error.data, aes(x=Trees, y=Error))+geom_line(aes(color=Type))
+```
+
+```{r}
+# optimize no. of variables at each internal node in tree
+oob.values <- vector(length=10)
+for(i in 1:10){
+  temp.model <- randomForest(Churn ~ ., data = telcoChurn.imputed, mtry=i, ntree=1000)
+  
+  #store OOB error rate for each random forest that uses diff value of i
+  oob.values[i] <- temp.model$err.rate[nrow(temp.model$err.rate),1]
+}
+
+oob.values
+```
+
+```{r}
+# no. of variables = 2 gives lowest oob err.rate
+
+rfmodeloptim <- randomForest(Churn ~ ., data = telcoChurn.imputed, mtry=2, proximity = TRUE)
+```
+
+```{r}
+rfmodeloptim
+# error rate reduced
+```
+
+```{r}
+distance.matrix <- dist(1-rfmodeloptim$proximity)
+
+mds.stuff <- cmdscale(distance.matrix, eig=TRUE, x.ret=TRUE)
+mds.var.per <- round(mds.stuff$eig/sum(mds.stuff$eig)*100,1)
+mds.values <- mds.stuff$points
+
+mds.data <- data.frame(Sample=rownames(mds.values), X=mds.values[,1], Y=mds.values[,2], Status=data.imputed$hd)
+
+ggplot(data=mds.data, aes(x=X, y=Y, label=Sample)) +
+  geom_text(aes(color=Status)) +
+  theme_bw() +
+  xlab(paste("MDS1 - ", mds.var.per[1], "%", sep="")) +
+  ylab(paste("MDS2 - ", mds.var.per[2], "%", sep="")) +
+  ggtitle("MDS plot using (1 - Random Forest Proximities)")
+```
 
 
 
