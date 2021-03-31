@@ -56,7 +56,9 @@ tenure$Exited <- as.factor(tenure$Exited)
 tenure$Exited <- ifelse(tenure$Exited == 0, "Did not exit", "Exited")   
 
 ggplot(tenure, aes(fill=Exited, y=n, x=Tenure))+ 
-  geom_bar(position="fill", stat="identity")+
+  ggtitle("Churn percentage against tenure") +
+  geom_bar(position="fill", stat="identity") +
+  theme(plot.title = element_text(hjust = 0.5)) +
   scale_fill_manual(values=c("skyblue", scales::alpha("red", .5)))
 
 ```
@@ -144,7 +146,9 @@ isActive$Exited <- as.factor(isActive$Exited)
 isActive$Exited <- ifelse(isActive$Exited == 0, "Did not exit", "Exited")   
 
 ggplot(isActive, aes(fill=Exited, y=n, x=IsActiveMember))+ 
+  ggtitle("Churn percentage against activity")+
   geom_bar(position="fill", stat="identity")+
+  theme(plot.title = element_text(hjust = 0.5))+
   scale_fill_manual(values=c("skyblue", scales::alpha("red", .5)))
 ```
 
@@ -168,7 +172,9 @@ numProducts$Exited <- as.factor(numProducts$Exited)
 numProducts$Exited <- ifelse(numProducts$Exited == 0, "Did not exit", "Exited")   
 
 ggplot(numProducts, aes(fill=Exited, y=n, x=NumOfProducts))+ 
+  ggtitle("Churn percentage against number of products")+
   geom_bar(position="fill", stat="identity")+
+  theme(plot.title = element_text(hjust = 0.5))+
   scale_fill_manual(values=c("skyblue", scales::alpha("red", .5)))
 ```
 ```{r}
