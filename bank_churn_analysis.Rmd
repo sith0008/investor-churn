@@ -23,6 +23,7 @@ library(party)
 library(MLmetrics)
 library(rpart)
 library(rpart.plot)
+library(precrec)
 
 ```
 
@@ -34,7 +35,7 @@ The preview shows you a rendered HTML copy of the contents of the editor. Conseq
 
 ```{r}
 bankChurn <- read.csv(file = 'Churn_Modelling.csv')
-bankChurn = subset(bankChurn, select=-c(Surname, CustomerId, RowNumber))
+bankChurn = subset(bankChurn, select=-c(Surname, CustomerId, RowNumber, CreditScore, Geography, Gender, HasCrCard))
 bankChurn$Exited <- as.factor(bankChurn$Exited)
 ```
 
@@ -207,17 +208,20 @@ misclassError <- mean(results != test$Exited)
 print(paste('Logistic Regression Accuracy',1-misclassError))
 ```
 ```{r}
-## To find out what are the important features 
-tree <- ctree(Exited~EstimatedSalary+IsActiveMember+HasCrCard+NumOfProducts+Balance+Tenure,train)
-plot(tree)
+print("Confusion Matrix for Logistic Regression"); table(Predicted = results, Actual = test$Exited)
 ```
 ```{r}
-tree
+precrec.logreg <- evalmod(scores = results, labels = test$Exited)
+print(precrec.logreg)
 ```
+```{r}
+autoplot(precrec.logreg)
+```
+
 ```{r}
 cart <- rpart(Exited ~ ., 
               data=train, 
-              method = 'anova', 
+              method = 'class', 
               control=rpart.control(minsplit = 2, cp = 0)
               )
 plotcp(cart)
@@ -241,13 +245,70 @@ cart.opt$variable.importance
 
 ```
 
+
 ```{r}
-tree.pred <- predict(tree, test)
+tree.pred <- predict(cart.opt, test, type="class")
 table.pred <- table(Predicted = tree.pred, Actual = test$Exited)
 print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
 ```
 ```{r}
 # Note: accuracy is 80% because of unbalanced dataset; most data points have Exited = 0. From the confusion matrix, we can see that there are a lot of false negatives
 print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual = test$Exited)
+```
+
+```{r}
+precrec.tree <- evalmod(scores = c(tree.pred), labels = test$Exited)
+print(precrec.tree)
+```
+```{r}
+autoplot(precrec.tree)
+```
+```{r}
+rf <- randomForest(Exited ~ ., data = train, proximity = TRUE)
+
+```
+
+```{r}
+rf
+```
+```{r}
+# model based on err.rate matrix: [OOB, No, Yes]
+oob.error.data <- data.frame(Trees=rep(1:nrow(rf$err.rate), times=3), Type=rep(c("OOB", "0", "1"), each=nrow(rf$err.rate)), Error=c(rf$err.rate[,"OOB"], rf$err.rate[,"0"], rf$err.rate[,"1"]))
+
+ggplot(data=oob.error.data, aes(x=Trees, y=Error))+geom_line(aes(color=Type))
+```
+
+```{r}
+rf.pred <- predict(rf, test)
+table.rf.pred <- table(Predicted = rf.pred, Actual = test$Exited)
+print(paste('Random Forest Accuracy',sum(diag(table.rf.pred))/sum(table.rf.pred)))
+```
+```{r}
+print("Confusion Matrix for Random Forest"); table(Predicted = rf.pred, Actual = test$Exited)
+```
+
+```{r}
+precrec.rf <- evalmod(scores = c(rf.pred), labels = test$Exited)
+print(precrec.rf)
+```
+
+```{r}
+autoplot(precrec.rf)
+```
+
+
+```{r}
+imp.logreg <- varImp(logreg, scale = FALSE)
+imp.logreg
+```
+
+```{r}
+imp.tree <- varImp(cart.opt, scale = FALSE)
+imp.tree
+```
+
+```{r}
+imp.rf <- varImp(rf, scale = FALSE)
+imp.rf
 ```
 
