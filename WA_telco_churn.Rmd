@@ -1,0 +1,190 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(dplyr)
+library(scales)
+library(ggplot2)
+library(corrplot)
+library(gridExtra)
+library(ggthemes)
+library(caret)
+library(MASS)
+library(randomForest)
+library(party)
+library(MLmetrics)
+library(rpart)
+library(rpart.plot)
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+telcoChurn <- read.csv(file = 'WA_Telco-Customer-Churn.csv')
+telcoChurn = subset(telcoChurn, select=-c(customerID, Dependents, MultipleLines, OnlineSecurity, OnlineBackup, DeviceProtection, TechSupport, StreamingTV, StreamingMovies))
+telcoChurn = telcoChurn[rowSums(is.na(telcoChurn))==0,]
+
+telcoChurn$Churn <- ifelse(telcoChurn$Churn == "No", 0, 1)
+telcoChurn$Churn <- as.factor(telcoChurn$Churn)
+telcoChurn
+```
+
+```{r}
+tenureCounts <- table(telcoChurn$tenure)
+barplot(
+  tenureCounts, 
+  main="Tenure Distribution",
+  xlab="Tenure",
+  col="skyblue",
+  border=F
+  )
+```
+
+```{r}
+# percentage exited for each tenure
+tenure <- telcoChurn %>% count(Churn, tenure)
+tenure$Churn <- as.factor(tenure$Churn)
+tenure$Churn <- ifelse(tenure$Churn == 0, "Did not exit", "Exited")
+
+ggplot(tenure, aes(fill=Churn, y=n, x=tenure))+ 
+  geom_bar(position="fill", stat="identity")+
+  scale_fill_manual(values=c("skyblue", scales::alpha("red", .5)))
+
+```
+```{r}
+# boxplot for tenure against exited
+boxplot(
+  tenure ~ Churn, 
+  data=telcoChurn, 
+  main="Tenure against Exited",
+  xlab="Exited",
+  ylab="Tenure"
+  )
+```
+```{r}
+contractCounts <- table(telcoChurn$Contract)
+barplot(
+  contractCounts, 
+  main="Number of products Distribution",
+  xlab="Number of products",
+  col="skyblue",
+  border=F
+  )
+```
+
+```{r}
+# percentage exited against number of products
+contractDuration <- telcoChurn %>% count(Churn, Contract)
+contractDuration$Churn <- as.factor(contractDuration$Churn)
+contractDuration$Churn <- ifelse(contractDuration$Churn == 0, "Did not exit", "Exited")   
+
+ggplot(contractDuration, aes(fill=Churn, y=n, x=Contract))+ 
+  geom_bar(position="fill", stat="identity")+
+  scale_fill_manual(values=c("skyblue", scales::alpha("red", .5)))
+```
+```{r}
+# train test split
+idx = createDataPartition(telcoChurn$Churn, p=0.7, list=FALSE)
+set.seed(42)
+train = telcoChurn[idx,]
+test = telcoChurn[-idx,]
+
+dim(train); dim(test)
+```
+
+```{r}
+# logistic regression to predict churn
+logreg = glm(Churn ~ ., 
+             family=binomial(link="logit"),
+             data=train
+             )
+print(summary(logreg))
+```
+```{r}
+# feature importance: the steeper the drop in deviance the more important the feature
+anova(logreg, test="Chisq")
+```
+```{r}
+# evaluating logistic regression model against test data
+results <- predict(logreg,newdata=test,type='response')
+results <- ifelse(results > 0.5,1,0)
+misclassError <- mean(results != test$Churn)
+print(paste('Logistic Regression Accuracy',1-misclassError))
+```
+```{r}
+## To change char data into int or dbl
+telcoChurn$InternetService = with(telcoChurn, ifelse(InternetService == "DSL", 1,
+                                      ifelse(InternetService == "No", 0, 2)))
+telcoChurn$InternetService <- as.integer(telcoChurn$InternetService)
+telcoChurn$PhoneService = ifelse(telcoChurn$PhoneService == "No", 0, 1)
+telcoChurn$PhoneService <- as.integer(telcoChurn$PhoneService)
+telcoChurn$Contract <- with(telcoChurn, ifelse(Contract == "One year", 1,
+                                      ifelse(Contract == "Two year", 2, 0)))
+telcoChurn$Contract <- as.integer(telcoChurn$Contract)
+telcoChurn$PaperlessBilling = ifelse(telcoChurn$PaperlessBilling == "No", 0, 1)
+telcoChurn$PaperlessBilling <- as.integer(telcoChurn$PaperlessBilling)
+
+train = telcoChurn[idx,]
+test = telcoChurn[-idx,]
+
+dim(train); dim(test)
+```
+
+```{r}
+## To find out what are the important features 
+tree <- ctree(Churn~PhoneService+InternetService+Contract+PaperlessBilling+MonthlyCharges+TotalCharges+tenure,train)
+plot(tree)
+```
+```{r}
+tree
+```
+```{r}
+cart <- rpart(Churn ~ ., 
+              data=train, 
+              method = 'anova', 
+              control=rpart.control(minsplit = 2, cp = 0)
+              )
+plotcp(cart)
+```
+```{r}
+CVerror.cap <- cart$cptable[which.min(cart$cptable[,"xerror"]), "xerror"] + cart$cptable[which.min(cart$cptable[,"xerror"]), "xstd"]
+
+# Find the optimal CP region whose CV error is just below CVerror.cap in maximal tree cart1.
+i <- 1; j<- 4
+while (cart$cptable[i,j] > CVerror.cap) {
+  i <- i + 1
+}
+
+# Get geometric mean of the two identified CP values in the optimal region if optimal tree has at least one split.
+cp.opt = ifelse(i > 1, sqrt(cart$cptable[i,1] * cart$cptable[i-1,1]), 1)
+```
+
+```{r}
+cart.opt <- prune(cart, cp = cp.opt)
+cart.opt$variable.importance
+
+```
+
+```{r}
+tree.pred <- predict(tree, test)
+table.pred <- table(Predicted = tree.pred, Actual = test$Churn)
+print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
+```
+```{r}
+# Note: accuracy is 80% because of unbalanced dataset; most data points have Exited = 0. From the confusion matrix, we can see that there are a lot of false negatives
+print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual = test$Churn)
+```
+

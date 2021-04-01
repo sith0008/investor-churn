@@ -1,0 +1,79 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(dplyr)
+library(scales)
+library(ggplot2)
+library(corrplot)
+library(gridExtra)
+library(ggthemes)
+library(caret)
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+marketing <- read.csv(file = 'WA_Marketing-Customer-Value-Analysis.csv')
+marketing
+```
+
+```{r}
+## Lifetime Value Distribution
+
+customerLifetimeValue <- marketing$Customer.Lifetime.Value
+hist(
+  customerLifetimeValue,
+  breaks = 50,
+  main="Customer Lifetime (Value) Distribution",
+  xlab="Lifetime Value",
+  col="skyblue",
+  border=F
+  )
+```
+
+```{r}
+## Income Distribution
+
+customerIncome <- marketing$Income
+hist(
+  customerIncome,
+  breaks = 50,
+  main="Customer Income Distribution",
+  xlab="Income",
+  col="orange",
+  border=F
+  )
+```
+```{r}
+# Just some numerical data prep
+premium <- marketing$Monthly.Premium.Auto
+months_last_claim <- marketing$Months.Since.Last.Claim
+months_inception <- marketing$Months.Since.Policy.Inception
+num_policies <- marketing$Number.of.Policies
+claim_amount <- marketing$Total.Claim.Amount
+
+```
+```{r}
+# boxplot for tenure against exited
+plot(customerIncome, customerLifetimeValue, main="Scatter Plot of Value against Income", xlab="Income", ylab="Lifetime Value")
+plot(premium, customerLifetimeValue, main="Scatter Plot of Value against Premium", xlab="Premium", ylab="Lifetime Value")
+plot(months_last_claim, customerLifetimeValue, main="Scatter Plot of Value against Months since Last Claim", xlab="Months since Last Claim", ylab="Lifetime Value")
+plot(months_inception, customerLifetimeValue, main="Scatter Plot of Value against Months since Inception", xlab="Months since Inception", ylab="Lifetime Value")
+plot(num_policies, customerLifetimeValue, main="Scatter Plot of Value against Number of Policies", xlab="Number of Policies", ylab="Lifetime Value")
+plot(claim_amount, customerLifetimeValue, main="Scatter Plot of Value against Claim Amount", xlab="Claim Amount", ylab="Lifetime Value")
+
+```
