@@ -194,8 +194,9 @@ anova(logreg, test="Chisq")
 ```
 ```{r}
 # evaluating logistic regression model against test data
-logreg.pred <- predict(logreg,newdata=test,type='response')
-logreg.pred <- ifelse(logreg.pred > 0.5,1,0)
+
+logreg.pred.score <- predict(logreg,newdata=test,type='response')
+logreg.pred <- ifelse(logreg.pred.score > 0.5,1,0)
 misclassError <- mean(logreg.pred != test$Churn)
 print(paste('Logistic Regression Accuracy',1-misclassError))
 ```
@@ -204,7 +205,7 @@ print("Confusion Matrix for Logistic Regression")
 table(Predicted = logreg.pred, Actual = test$Churn)
 ```
 ```{r}
-precrec.logreg <- evalmod(scores = logreg.pred, labels = test$Churn)
+precrec.logreg <- evalmod(scores = logreg.pred.score, labels = test$Churn)
 print(precrec.logreg)
 ```
 ```{r}
@@ -241,6 +242,7 @@ cart.opt$variable.importance
 
 ```{r}
 tree.pred <- predict(cart.opt, test, type="class")
+tree.pred.scores <- predict(cart.opt, test, type="prob")
 table.pred <- table(Predicted = tree.pred, Actual = test$Churn)
 print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
 ```
@@ -250,7 +252,7 @@ print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual
 ```
 
 ```{r}
-precrec.tree <- evalmod(scores = c(tree.pred), labels = test$Churn)
+precrec.tree <- evalmod(scores = tree.pred.scores[, 2], labels = test$Churn)
 print(precrec.tree)
 ```
 ```{r}
@@ -295,7 +297,8 @@ rfmodeloptim
 ```
 
 ```{r}
-rf.pred <- predict(rfmodeloptim, test)
+rf.pred <- predict(rfmodeloptim, test, type="response")
+rf.pred.scores <- predict(rfmodeloptim, test, type="prob")
 table.rf.pred <- table(Predicted = rf.pred, Actual = test$Churn)
 print(paste('Random Forest Accuracy',sum(diag(table.rf.pred))/sum(table.rf.pred)))
 ```
@@ -304,8 +307,9 @@ print("Confusion Matrix for Random Forest"); table(Predicted = rf.pred, Actual =
 ```
 
 ```{r}
-precrec.rf <- evalmod(scores = c(rf.pred), labels = test$Churn)
+precrec.rf <- evalmod(scores = rf.pred.scores[, 2], labels = test$Churn)
 print(precrec.rf)
+
 ```
 
 ```{r}

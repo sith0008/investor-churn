@@ -1,21 +1,7 @@
 ---
-title: "R Notebook"
+title: "Telco Churn"
 #output: html_notebook
 ---
-
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
-
-```{r}
-plot(cars)
-```
-
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
 
 ```{r}
 library(dplyr)
@@ -201,16 +187,16 @@ anova(logreg, test="Chisq")
 ```
 ```{r}
 # evaluating logistic regression model against test data
-results <- predict(logreg,newdata=test,type='response')
-results <- ifelse(results > 0.5,1,0)
-misclassError <- mean(results != test$Churn)
+logreg.scores <- predict(logreg,newdata=test,type='response')
+logreg.pred <- ifelse(logreg.scores > 0.5,1,0)
+misclassError <- mean(logreg.pred != test$Churn)
 print(paste('Logistic Regression Accuracy',1-misclassError))
 ```
 ```{r}
-print("Confusion Matrix for Logistic Regression"); table(Predicted = results, Actual = test$Churn)
+print("Confusion Matrix for Logistic Regression"); table(Predicted = logreg.pred, Actual = test$Churn)
 ```
 ```{r}
-precrec.logreg <- evalmod(scores = results, labels = test$Churn)
+precrec.logreg <- evalmod(scores = logreg.scores, labels = test$Churn)
 print(precrec.logreg)
 ```
 ```{r}
@@ -247,6 +233,7 @@ cart.opt$variable.importance
 
 ```{r}
 tree.pred <- predict(cart.opt, test, type="class")
+tree.pred.scores <- predict(cart.opt, test, type="prob")
 table.pred <- table(Predicted = tree.pred, Actual = test$Churn)
 print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
 ```
@@ -256,7 +243,7 @@ print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual
 ```
 
 ```{r}
-precrec.tree <- evalmod(scores = c(tree.pred), labels = test$Churn)
+precrec.tree <- evalmod(scores = tree.pred.scores[, 2], labels = test$Churn)
 print(precrec.tree)
 ```
 ```{r}
@@ -318,14 +305,15 @@ oob.values
 ```{r}
 # no. of variables = 2 gives lowest oob err.rate
 
-rfmodeloptim <- randomForest(Churn ~ ., data = telcoChurn, mtry=2, proximity = TRUE)
+rfmodeloptim <- randomForest(Churn ~ ., data = train, mtry=2, proximity = TRUE, type='classification')
 ```
 ```{r}
 rfmodeloptim
 # error rate reduced
 ```
 ```{r}
-rfmodeloptim.pred <- predict(rfmodeloptim, test)
+rfmodeloptim.pred <- predict(rfmodeloptim, test, type="response")
+rfmodeloptim.pred.scores <- predict(rfmodeloptim, test, type="prob")
 table.rfmodeloptim.pred <- table(Predicted = rfmodeloptim.pred, Actual = test$Churn)
 print(paste('Random Forest Accuracy',sum(diag(table.rfmodeloptim.pred))/sum(table.rfmodeloptim.pred)))
 ```
@@ -333,8 +321,7 @@ print(paste('Random Forest Accuracy',sum(diag(table.rfmodeloptim.pred))/sum(tabl
 print("Confusion Matrix for Random Forest"); table(Predicted = rfmodeloptim.pred, Actual = test$Churn)
 ```
 ```{r}
-test$Churn = ifelse(test$Churn == "Yes",1,0) # this cannot be a factor for labels below
-precrec.rf <- evalmod(scores = c(rfmodeloptim.pred), labels = test$Churn)
+precrec.rf <- evalmod(scores = rfmodeloptim.pred.scores[, 2], labels = test$Churn)
 print(precrec.rf)
 ```
 ```{r}
