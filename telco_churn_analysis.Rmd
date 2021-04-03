@@ -217,46 +217,44 @@ print(precrec.logreg)
 autoplot(precrec.logreg)
 ```
 
-
-```{r}
-## To find out what are the important features 
-tree <- ctree(Churn~tenure+MonthlyCharges+TotalCharges, train)
-plot(tree)
-```
-```{r}
-tree
-```
 ```{r}
 cart <- rpart(Churn ~ ., 
               data=train, 
-              method = 'anova', 
+              method = 'class', 
               control=rpart.control(minsplit = 2, cp = 0)
               )
 plotcp(cart)
 ```
 ```{r}
 CVerror.cap <- cart$cptable[which.min(cart$cptable[,"xerror"]), "xerror"] + cart$cptable[which.min(cart$cptable[,"xerror"]), "xstd"]
+
 # Find the optimal CP region whose CV error is just below CVerror.cap in maximal tree cart1.
 i <- 1; j<- 4
 while (cart$cptable[i,j] > CVerror.cap) {
   i <- i + 1
 }
+
 # Get geometric mean of the two identified CP values in the optimal region if optimal tree has at least one split.
 cp.opt = ifelse(i > 1, sqrt(cart$cptable[i,1] * cart$cptable[i-1,1]), 1)
 ```
+
 ```{r}
 cart.opt <- prune(cart, cp = cp.opt)
 cart.opt$variable.importance
+
 ```
+
+
 ```{r}
-tree.pred <- predict(tree, test)
+tree.pred <- predict(cart.opt, test, type="class")
 table.pred <- table(Predicted = tree.pred, Actual = test$Churn)
 print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
 ```
 ```{r}
-# Note: accuracy is 80% because of unbalanced dataset; most data points have Exited = 0. From the confusion matrix, we can see that there are a lot of false negatives
+# Note: accuracy is 80% because of unbalanced dataset; most data points have Churn = 0. From the confusion matrix, we can see that there are a lot of false negatives
 print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual = test$Churn)
 ```
+
 ```{r}
 precrec.tree <- evalmod(scores = c(tree.pred), labels = test$Churn)
 print(precrec.tree)
