@@ -1,13 +1,9 @@
 ---
-title: "R Notebook"
+title: "Bank Churn"
 output:
   pdf_document: default
   html_notebook: default
 ---
-
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
 
 ```{r}
 library(dplyr)
@@ -27,11 +23,6 @@ library(precrec)
 
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
 
 ```{r}
 bankChurn <- read.csv(file = 'Churn_Modelling.csv')
@@ -39,6 +30,7 @@ bankChurn = subset(bankChurn, select=-c(Surname, CustomerId, RowNumber, CreditSc
 names(bankChurn)[names(bankChurn) == "Exited"] <- "Churn"
 bankChurn$Churn = ifelse(bankChurn$Churn == 1, "Yes", "No")
 bankChurn$Churn = as.factor(bankChurn$Churn)
+dim(bankChurn)
 ```
 
 ```{r}
@@ -280,7 +272,30 @@ ggplot(data=oob.error.data, aes(x=Trees, y=Error))+geom_line(aes(color=Type))
 ```
 
 ```{r}
-rf.pred <- predict(rf, test)
+# optimize no. of variables at each internal node in tree
+oob.values <- vector(length=10)
+for(i in 1:10){
+  temp.model <- randomForest(Churn ~ ., data = train, mtry=i, ntree=1000)
+  
+  #store OOB error rate for each random forest that uses diff value of i
+  oob.values[i] <- temp.model$err.rate[nrow(temp.model$err.rate),1]
+}
+
+oob.values
+```
+
+```{r}
+# no. of variables = 2 gives lowest oob err.rate
+
+rfmodeloptim <- randomForest(Churn ~ ., data = train, mtry=2, proximity = TRUE, type='classification')
+```
+```{r}
+rfmodeloptim
+# error rate reduced
+```
+
+```{r}
+rf.pred <- predict(rfmodeloptim, test)
 table.rf.pred <- table(Predicted = rf.pred, Actual = test$Churn)
 print(paste('Random Forest Accuracy',sum(diag(table.rf.pred))/sum(table.rf.pred)))
 ```
@@ -309,7 +324,7 @@ imp.tree
 ```
 
 ```{r}
-imp.rf <- varImp(rf, scale = FALSE)
+imp.rf <- varImp(rfmodeloptim, scale = FALSE)
 imp.rf
 ```
 
