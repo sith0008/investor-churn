@@ -279,7 +279,7 @@ set.seed(42)
 # telcoChurn.imputed <- rfImpute(Churn ~ ., data = telcoChurn, iter = 6)
 ```
 ```{r}
-rfmodel <- randomForest(Churn ~ ., data = telcoChurn, proximity = TRUE)
+rfmodel <- randomForest(Churn ~ ., data = train, proximity = TRUE)
 ```
 ```{r}
 rfmodel
@@ -289,7 +289,23 @@ rfmodel
 oob.error.data <- data.frame(Trees=rep(1:nrow(rfmodel$err.rate), times=3), Type=rep(c("OOB", "No", "Yes"), each=nrow(rfmodel$err.rate)), Error=c(rfmodel$err.rate[,"OOB"], rfmodel$err.rate[,"No"], rfmodel$err.rate[,"Yes"]))
 
 ggplot(data=oob.error.data, aes(x=Trees, y=Error))+geom_line(aes(color=Type))
+
 ```
+
+```{r}
+rfmodel.pred <- predict(rfmodel, test, type="response")
+rfmodel.pred.scores <- predict(rfmodel, test, type="prob")
+table.rfmodel.pred <- table(Predicted = rfmodel.pred, Actual = test$Churn)
+print(paste('Random Forest Accuracy',sum(diag(table.rfmodel.pred))/sum(table.rfmodel.pred)))
+```
+```{r}
+print("Confusion Matrix for Random Forest"); table(Predicted = rfmodel.pred, Actual = test$Churn)
+```
+```{r}
+precrec.rf <- evalmod(scores = rfmodel.pred.scores[, 2], labels = test$Churn)
+print(precrec.rf)
+```
+
 ```{r}
 # optimize no. of variables at each internal node in tree
 oob.values <- vector(length=10)
@@ -331,23 +347,6 @@ autoplot(precrec.rf)
 oob.error.data <- data.frame(Trees=rep(1:nrow(rfmodel$err.rate), times=3), Type=rep(c("OOB", "No", "Yes"), each=nrow(rfmodeloptim$err.rate)), Error=c(rfmodeloptim$err.rate[,"OOB"], rfmodeloptim$err.rate[,"No"], rfmodeloptim$err.rate[,"Yes"]))
 
 ggplot(data=oob.error.data, aes(x=Trees, y=Error))+geom_line(aes(color=Type))
-```
-
-```{r}
-distance.matrix <- dist(1-rfmodeloptim$proximity)
-
-mds.stuff <- cmdscale(distance.matrix, eig=TRUE, x.ret=TRUE)
-mds.var.per <- round(mds.stuff$eig/sum(mds.stuff$eig)*100,1)
-mds.values <- mds.stuff$points
-
-mds.data <- data.frame(Sample=rownames(mds.values), X=mds.values[,1], Y=mds.values[,2], Status=data.imputed$hd)
-
-ggplot(data=mds.data, aes(x=X, y=Y, label=Sample)) +
-  geom_text(aes(color=Status)) +
-  theme_bw() +
-  xlab(paste("MDS1 - ", mds.var.per[1], "%", sep="")) +
-  ylab(paste("MDS2 - ", mds.var.per[2], "%", sep="")) +
-  ggtitle("MDS plot using (1 - Random Forest Proximities)")
 ```
 
 ```{r}
