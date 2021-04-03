@@ -36,7 +36,9 @@ The preview shows you a rendered HTML copy of the contents of the editor. Conseq
 ```{r}
 bankChurn <- read.csv(file = 'Churn_Modelling.csv')
 bankChurn = subset(bankChurn, select=-c(Surname, CustomerId, RowNumber, CreditScore, Geography, Gender, HasCrCard))
-bankChurn$Exited <- as.factor(bankChurn$Exited)
+names(bankChurn)[names(bankChurn) == "Exited"] <- "Churn"
+bankChurn$Churn = ifelse(bankChurn$Churn == 1, "Yes", "No")
+bankChurn$Churn = as.factor(bankChurn$Churn)
 ```
 
 ```{r}
@@ -51,12 +53,10 @@ barplot(
 ```
 
 ```{r}
-# percentage exited for each tenure
-tenure <- bankChurn %>% count(Exited, Tenure)
-tenure$Exited <- as.factor(tenure$Exited)
-tenure$Exited <- ifelse(tenure$Exited == 0, "Did not exit", "Exited")   
+# percentage Churn for each tenure
+tenure <- bankChurn %>% count(Churn, Tenure)
 
-ggplot(tenure, aes(fill=Exited, y=n, x=Tenure))+ 
+ggplot(tenure, aes(fill=Churn, y=n, x=Tenure))+ 
   ggtitle("Churn percentage against tenure") +
   geom_bar(position="fill", stat="identity") +
   theme(plot.title = element_text(hjust = 0.5)) +
@@ -64,12 +64,12 @@ ggplot(tenure, aes(fill=Exited, y=n, x=Tenure))+
 
 ```
 ```{r}
-# boxplot for tenure against exited
+# boxplot for tenure against Churn
 boxplot(
-  Tenure ~ Exited, 
+  Tenure ~ Churn, 
   data=bankChurn, 
-  main="Tenure against Exited",
-  xlab="Exited",
+  main="Tenure against Churn",
+  xlab="Churn",
   ylab="Tenure"
   )
 ```
@@ -86,12 +86,12 @@ hist(
 ```
 
 ```{r}
-# boxplot for age against exited
+# boxplot for age against Churn
 boxplot(
-  Age ~ Exited, 
+  Age ~ Churn, 
   data=bankChurn, 
-  main="Age against Exited",
-  xlab="Exited",
+  main="Age against Churn",
+  xlab="Churn",
   ylab="Age"
   )
 ```
@@ -108,12 +108,12 @@ hist(
 ```
 
 ```{r}
-# boxplot for balance against exited
+# boxplot for balance against Churn
 boxplot(
-  Balance ~ Exited, 
+  Balance ~ Churn, 
   data=bankChurn, 
-  main="Balance against Exited",
-  xlab="Exited",
+  main="Balance against Churn",
+  xlab="Churn",
   ylab="Balance"
   )
 ```
@@ -130,23 +130,20 @@ hist(
 ```
 
 ```{r}
-# boxplot for salary against exited
+# boxplot for salary against Churn
 boxplot(
-  EstimatedSalary ~ Exited, 
+  EstimatedSalary ~ Churn, 
   data=bankChurn, 
-  main="Salary against Exited",
-  xlab="Exited",
+  main="Salary against Churn",
+  xlab="Churn",
   ylab="Salary"
   )
 ```
 
 ```{r}
-# percentage exited against is_active
-isActive <- bankChurn %>% count(Exited, IsActiveMember)
-isActive$Exited <- as.factor(isActive$Exited)
-isActive$Exited <- ifelse(isActive$Exited == 0, "Did not exit", "Exited")   
-
-ggplot(isActive, aes(fill=Exited, y=n, x=IsActiveMember))+ 
+# percentage Churn against is_active
+isActive <- bankChurn %>% count(Churn, IsActiveMember)
+ggplot(isActive, aes(fill=Churn, y=n, x=IsActiveMember))+ 
   ggtitle("Churn percentage against activity")+
   geom_bar(position="fill", stat="identity")+
   theme(plot.title = element_text(hjust = 0.5))+
@@ -167,12 +164,10 @@ barplot(
 ```
 
 ```{r}
-# percentage exited against number of products
-numProducts <- bankChurn %>% count(Exited, NumOfProducts)
-numProducts$Exited <- as.factor(numProducts$Exited)
-numProducts$Exited <- ifelse(numProducts$Exited == 0, "Did not exit", "Exited")   
+# percentage Churn against number of products
+numProducts <- bankChurn %>% count(Churn, NumOfProducts)
 
-ggplot(numProducts, aes(fill=Exited, y=n, x=NumOfProducts))+ 
+ggplot(numProducts, aes(fill=Churn, y=n, x=NumOfProducts))+ 
   ggtitle("Churn percentage against number of products")+
   geom_bar(position="fill", stat="identity")+
   theme(plot.title = element_text(hjust = 0.5))+
@@ -180,17 +175,22 @@ ggplot(numProducts, aes(fill=Exited, y=n, x=NumOfProducts))+
 ```
 ```{r}
 # train test split
-idx = createDataPartition(bankChurn$Exited, p=0.7, list=FALSE)
+idx = createDataPartition(bankChurn$Churn, p=0.7, list=FALSE)
 set.seed(42)
 train = bankChurn[idx,]
 test = bankChurn[-idx,]
+train$Churn = ifelse(train$Churn == "Yes",1,0)
+test$Churn = ifelse(test$Churn == "Yes",1,0)
+train$Churn = as.factor(train$Churn)
+test$Churn = as.factor(test$Churn)
+
 
 dim(train); dim(test)
 ```
 
 ```{r}
 # logistic regression to predict churn
-logreg = glm(Exited ~ ., 
+logreg = glm(Churn ~ ., 
              family=binomial(link="logit"),
              data=train
              )
@@ -202,16 +202,17 @@ anova(logreg, test="Chisq")
 ```
 ```{r}
 # evaluating logistic regression model against test data
-results <- predict(logreg,newdata=test,type='response')
-results <- ifelse(results > 0.5,1,0)
-misclassError <- mean(results != test$Exited)
+logreg.pred <- predict(logreg,newdata=test,type='response')
+logreg.pred <- ifelse(logreg.pred > 0.5,1,0)
+misclassError <- mean(logreg.pred != test$Churn)
 print(paste('Logistic Regression Accuracy',1-misclassError))
 ```
 ```{r}
-print("Confusion Matrix for Logistic Regression"); table(Predicted = results, Actual = test$Exited)
+print("Confusion Matrix for Logistic Regression")
+table(Predicted = logreg.pred, Actual = test$Churn)
 ```
 ```{r}
-precrec.logreg <- evalmod(scores = results, labels = test$Exited)
+precrec.logreg <- evalmod(scores = logreg.pred, labels = test$Churn)
 print(precrec.logreg)
 ```
 ```{r}
@@ -219,7 +220,7 @@ autoplot(precrec.logreg)
 ```
 
 ```{r}
-cart <- rpart(Exited ~ ., 
+cart <- rpart(Churn ~ ., 
               data=train, 
               method = 'class', 
               control=rpart.control(minsplit = 2, cp = 0)
@@ -248,23 +249,23 @@ cart.opt$variable.importance
 
 ```{r}
 tree.pred <- predict(cart.opt, test, type="class")
-table.pred <- table(Predicted = tree.pred, Actual = test$Exited)
+table.pred <- table(Predicted = tree.pred, Actual = test$Churn)
 print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
 ```
 ```{r}
-# Note: accuracy is 80% because of unbalanced dataset; most data points have Exited = 0. From the confusion matrix, we can see that there are a lot of false negatives
-print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual = test$Exited)
+# Note: accuracy is 80% because of unbalanced dataset; most data points have Churn = 0. From the confusion matrix, we can see that there are a lot of false negatives
+print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual = test$Churn)
 ```
 
 ```{r}
-precrec.tree <- evalmod(scores = c(tree.pred), labels = test$Exited)
+precrec.tree <- evalmod(scores = c(tree.pred), labels = test$Churn)
 print(precrec.tree)
 ```
 ```{r}
 autoplot(precrec.tree)
 ```
 ```{r}
-rf <- randomForest(Exited ~ ., data = train, proximity = TRUE)
+rf <- randomForest(Churn ~ ., data = train, proximity = TRUE, type='classification')
 
 ```
 
@@ -280,15 +281,15 @@ ggplot(data=oob.error.data, aes(x=Trees, y=Error))+geom_line(aes(color=Type))
 
 ```{r}
 rf.pred <- predict(rf, test)
-table.rf.pred <- table(Predicted = rf.pred, Actual = test$Exited)
+table.rf.pred <- table(Predicted = rf.pred, Actual = test$Churn)
 print(paste('Random Forest Accuracy',sum(diag(table.rf.pred))/sum(table.rf.pred)))
 ```
 ```{r}
-print("Confusion Matrix for Random Forest"); table(Predicted = rf.pred, Actual = test$Exited)
+print("Confusion Matrix for Random Forest"); table(Predicted = rf.pred, Actual = test$Churn)
 ```
 
 ```{r}
-precrec.rf <- evalmod(scores = c(rf.pred), labels = test$Exited)
+precrec.rf <- evalmod(scores = c(rf.pred), labels = test$Churn)
 print(precrec.rf)
 ```
 
