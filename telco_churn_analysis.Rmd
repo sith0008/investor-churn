@@ -1,7 +1,9 @@
 ---
-title: "Telco Churn"
-#output: html_notebook
+title: "Telco Churn Analysis"
+output: pdf_document
 ---
+
+# Import dependencies
 
 ```{r}
 library(dplyr)
@@ -20,6 +22,8 @@ library(rpart.plot)
 library(precrec)
 ```
 
+# Read in data and preprocess
+
 ```{r}
 telcoChurn <- read.csv(file = 'telco_churn_edited.csv')
 telcoChurn = subset(telcoChurn, select=-c(customerID))
@@ -27,6 +31,10 @@ telcoChurn$Churn <- as.factor(telcoChurn$Churn)
 telcoChurn <- na.omit(telcoChurn)
 
 ```
+
+# Exploratory Data Analysis
+
+## Tenure against Churn
 
 ```{r}
 tenureCounts <- table(telcoChurn$tenure)
@@ -38,6 +46,7 @@ barplot(
   border=F
 )
 ```
+
 ```{r}
 # percentage exited for each tenure
 tenure <- telcoChurn %>% count(Churn, tenure)
@@ -49,6 +58,7 @@ ggplot(tenure, aes(fill=Churn, y=n, x=tenure))+
   scale_fill_manual(values = c("skyblue", scales::alpha("red", .5)))
 
 ```
+
 ```{r}
 # boxplot for tenure against churn
 boxplot(
@@ -60,6 +70,8 @@ boxplot(
   )
 ```
 
+## Contract Type against Churn
+
 ```{r}
 ContractType <- table(telcoChurn$Contract)
 barplot(
@@ -70,6 +82,7 @@ barplot(
   border=F
 )
 ```
+
 ```{r}
 # percentage exited for each contract type
 Contract <- telcoChurn %>% count(Churn, Contract)
@@ -81,6 +94,8 @@ ggplot(Contract, aes(fill=Churn, y=n, x=Contract))+
   scale_fill_manual(values = c("skyblue", scales::alpha("red", .5)))
 ```
 
+## Monthly Charges against Churn
+
 ```{r}
 MonthlyChargesCounts <- table(telcoChurn$MonthlyChargesIntervals)
 barplot(
@@ -91,6 +106,7 @@ barplot(
   border=F
 )
 ```
+
 ```{r}
 # percentage exited for Montly Charge Range
 MonthlyChargesIntervals <- telcoChurn %>% count(Churn, MonthlyChargesIntervals)
@@ -102,6 +118,7 @@ ggplot(MonthlyChargesIntervals, aes(fill=Churn, y=n, x=MonthlyChargesIntervals))
   geom_bar(position="fill", stat="identity")+
   scale_fill_manual(values = c("skyblue", scales::alpha("red", .5)))
 ```
+
 ```{r}
 # boxplot for monthly charges against churn
 boxplot(
@@ -113,6 +130,8 @@ boxplot(
   )
 ```
 
+## Total Charges against Churn
+
 ```{r}
 TotalChargesCounts <- table(telcoChurn$TotalChargesIntervals)
 barplot(
@@ -123,6 +142,7 @@ barplot(
   border=F
 )
 ```
+
 ```{r}
 # percentage exited for Montly Charge Range
 TotalChargesIntervals <- telcoChurn %>% count(Churn, TotalChargesIntervals)
@@ -135,6 +155,8 @@ ggplot(TotalChargesIntervals, aes(fill=Churn, y=n, x=TotalChargesIntervals))+
   scale_fill_manual(values = c("skyblue", scales::alpha("red", .5)))
 ```
 
+## Senior Citizen against Churn
+
 ```{r}
 SeniorCitizenscount <- table(telcoChurn$SeniorCitizen)
 barplot(
@@ -145,6 +167,7 @@ barplot(
   border=F
 )
 ```
+
 ```{r}
 # percentage exited for Montly Charge Range
 SeniorCitizen <- telcoChurn %>% count(Churn, SeniorCitizen)
@@ -156,6 +179,10 @@ ggplot(SeniorCitizen, aes(fill=Churn, y=n, x=SeniorCitizen))+
   geom_bar(position="fill", stat="identity")+
   scale_fill_manual(values = c("skyblue", scales::alpha("red", .5)))
 ```
+
+# Training
+
+## Train-test-split
 
 ```{r}
 # train test split
@@ -172,6 +199,8 @@ test$Churn = as.factor(test$Churn)
 dim(train); dim(test)
 ```
 
+## Logistic Regression
+
 ```{r}
 # logistic regression to predict churn
 logreg = glm(Churn ~ .,
@@ -181,10 +210,16 @@ logreg = glm(Churn ~ .,
 print(summary(logreg))
 
 ```
+
+### Feature importance using deviance
+
 ```{r}
 # feature importance: the steeper the drop in deviance the more important the feature
 anova(logreg, test="Chisq")
 ```
+
+### Accuracy
+
 ```{r}
 # evaluating logistic regression model against test data
 logreg.scores <- predict(logreg,newdata=test,type='response')
@@ -192,16 +227,25 @@ logreg.pred <- ifelse(logreg.scores > 0.5,1,0)
 misclassError <- mean(logreg.pred != test$Churn)
 print(paste('Logistic Regression Accuracy',1-misclassError))
 ```
+
+### Confusion Matrix
+
 ```{r}
 print("Confusion Matrix for Logistic Regression"); table(Predicted = logreg.pred, Actual = test$Churn)
 ```
+
+### ROC, PRC curves
+
 ```{r}
 precrec.logreg <- evalmod(scores = logreg.scores, labels = test$Churn)
 print(precrec.logreg)
 ```
+
 ```{r}
 autoplot(precrec.logreg)
 ```
+
+## Decision Tree
 
 ```{r}
 cart <- rpart(Churn ~ ., 
@@ -211,6 +255,9 @@ cart <- rpart(Churn ~ .,
               )
 plotcp(cart)
 ```
+
+### Optimisation of CP value
+
 ```{r}
 CVerror.cap <- cart$cptable[which.min(cart$cptable[,"xerror"]), "xerror"] + cart$cptable[which.min(cart$cptable[,"xerror"]), "xstd"]
 
@@ -230,6 +277,7 @@ cart.opt$variable.importance
 
 ```
 
+### Accuracy
 
 ```{r}
 tree.pred <- predict(cart.opt, test, type="class")
@@ -237,60 +285,46 @@ tree.pred.scores <- predict(cart.opt, test, type="prob")
 table.pred <- table(Predicted = tree.pred, Actual = test$Churn)
 print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
 ```
+
+### Confusion Matrix
+
 ```{r}
 # Note: accuracy is 80% because of unbalanced dataset; most data points have Churn = 0. From the confusion matrix, we can see that there are a lot of false negatives
 print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual = test$Churn)
 ```
 
+### ROC, PRC curves
+
 ```{r}
 precrec.tree <- evalmod(scores = tree.pred.scores[, 2], labels = test$Churn)
 print(precrec.tree)
 ```
+
 ```{r}
 autoplot(precrec.tree)
 ```
 
-```{r}
-telcoChurn$gender <- as.factor(telcoChurn$gender)
-telcoChurn$SeniorCitizen <- as.factor(telcoChurn$SeniorCitizen)
-telcoChurn$Partner <- as.factor(telcoChurn$Partner)
-telcoChurn$Dependents <- as.factor(telcoChurn$Dependents)
-telcoChurn$PhoneService <- as.factor(telcoChurn$PhoneService)
-telcoChurn$MultipleLines <- as.factor(telcoChurn$MultipleLines)
-telcoChurn$InternetService <- as.factor(telcoChurn$InternetService)
-telcoChurn$OnlineSecurity <- as.factor(telcoChurn$OnlineSecurity)
-telcoChurn$OnlineBackup <- as.factor(telcoChurn$OnlineBackup)
-telcoChurn$DeviceProtection <- as.factor(telcoChurn$DeviceProtection)
-telcoChurn$TechSupport <- as.factor(telcoChurn$TechSupport)
-telcoChurn$StreamingTV <- as.factor(telcoChurn$StreamingTV)
-telcoChurn$StreamingMovies <- as.factor(telcoChurn$StreamingMovies)
-telcoChurn$Contract <- as.factor(telcoChurn$Contract)
-telcoChurn$PaperlessBilling <- as.factor(telcoChurn$PaperlessBilling)
-telcoChurn$PaymentMethod <- as.factor(telcoChurn$PaymentMethod)
-telcoChurn$MonthlyChargesIntervals <- as.factor(telcoChurn$MonthlyChargesIntervals)
-telcoChurn$TotalChargesIntervals <- as.factor(telcoChurn$TotalChargesIntervals)
-telcoChurn$OnlineSecurity <- as.factor(telcoChurn$OnlineSecurity)
+## Random Forest 
 
-# r forest
-str(telcoChurn)
-```
-```{r}
-set.seed(42)
-# telcoChurn.imputed <- rfImpute(Churn ~ ., data = telcoChurn, iter = 6)
-```
 ```{r}
 rfmodel <- randomForest(Churn ~ ., data = train, proximity = TRUE)
 ```
+
 ```{r}
 rfmodel
 ```
+
+### OOB error plot for initial model
+
 ```{r}
 # model based on err.rate matrix: [OOB, No, Yes]
-oob.error.data <- data.frame(Trees=rep(1:nrow(rfmodel$err.rate), times=3), Type=rep(c("OOB", "No", "Yes"), each=nrow(rfmodel$err.rate)), Error=c(rfmodel$err.rate[,"OOB"], rfmodel$err.rate[,"No"], rfmodel$err.rate[,"Yes"]))
+oob.error.data <- data.frame(Trees=rep(1:nrow(rfmodel$err.rate), times=3), Type=rep(c("OOB", "0", "1"), each=nrow(rfmodel$err.rate)), Error=c(rfmodel$err.rate[,"OOB"], rfmodel$err.rate[,"0"], rfmodel$err.rate[,"1"]))
 
 ggplot(data=oob.error.data, aes(x=Trees, y=Error))+geom_line(aes(color=Type))
 
 ```
+
+### Accuracy for initial model
 
 ```{r}
 rfmodel.pred <- predict(rfmodel, test, type="response")
@@ -298,13 +332,21 @@ rfmodel.pred.scores <- predict(rfmodel, test, type="prob")
 table.rfmodel.pred <- table(Predicted = rfmodel.pred, Actual = test$Churn)
 print(paste('Random Forest Accuracy',sum(diag(table.rfmodel.pred))/sum(table.rfmodel.pred)))
 ```
+
+### Confusion Matrix for initial model
+
 ```{r}
 print("Confusion Matrix for Random Forest"); table(Predicted = rfmodel.pred, Actual = test$Churn)
 ```
+
+### ROC, PRC curves for initial model
+
 ```{r}
 precrec.rf <- evalmod(scores = rfmodel.pred.scores[, 2], labels = test$Churn)
 print(precrec.rf)
 ```
+
+### Optimisation of no. of variable in each internal node
 
 ```{r}
 # optimize no. of variables at each internal node in tree
@@ -318,36 +360,53 @@ for(i in 1:10){
 
 oob.values
 ```
+
 ```{r}
 # no. of variables = 2 gives lowest oob err.rate
 
 rfmodeloptim <- randomForest(Churn ~ ., data = train, mtry=2, proximity = TRUE, type='classification')
 ```
+
 ```{r}
 rfmodeloptim
 # error rate reduced
 ```
+
+### Accuracy for optimised model
+
 ```{r}
 rfmodeloptim.pred <- predict(rfmodeloptim, test, type="response")
 rfmodeloptim.pred.scores <- predict(rfmodeloptim, test, type="prob")
 table.rfmodeloptim.pred <- table(Predicted = rfmodeloptim.pred, Actual = test$Churn)
 print(paste('Random Forest Accuracy',sum(diag(table.rfmodeloptim.pred))/sum(table.rfmodeloptim.pred)))
 ```
+
+### Confusion Matrix for optimised model
+
 ```{r}
 print("Confusion Matrix for Random Forest"); table(Predicted = rfmodeloptim.pred, Actual = test$Churn)
 ```
+
+### ROC, PRC curves for optimised model
+
 ```{r}
 precrec.rf <- evalmod(scores = rfmodeloptim.pred.scores[, 2], labels = test$Churn)
 print(precrec.rf)
 ```
+
 ```{r}
 autoplot(precrec.rf)
 ```
+
+### OOB error plot for optimised model
+
 ```{r}
-oob.error.data <- data.frame(Trees=rep(1:nrow(rfmodel$err.rate), times=3), Type=rep(c("OOB", "No", "Yes"), each=nrow(rfmodeloptim$err.rate)), Error=c(rfmodeloptim$err.rate[,"OOB"], rfmodeloptim$err.rate[,"No"], rfmodeloptim$err.rate[,"Yes"]))
+oob.error.data <- data.frame(Trees=rep(1:nrow(rfmodel$err.rate), times=3), Type=rep(c("OOB", "0", "1"), each=nrow(rfmodeloptim$err.rate)), Error=c(rfmodeloptim$err.rate[,"OOB"], rfmodeloptim$err.rate[,"0"], rfmodeloptim$err.rate[,"1"]))
 
 ggplot(data=oob.error.data, aes(x=Trees, y=Error))+geom_line(aes(color=Type))
 ```
+
+# Feature Importances across models
 
 ```{r}
 imp.logreg <- varImp(logreg, scale = FALSE)

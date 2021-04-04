@@ -1,9 +1,11 @@
 ---
-title: "Bank Churn"
+title: "Bank Churn Dataset Analysis"
 output:
   pdf_document: default
   html_notebook: default
 ---
+
+# Import dependencies
 
 ```{r}
 library(dplyr)
@@ -23,6 +25,7 @@ library(precrec)
 
 ```
 
+# Read in data and preprocess
 
 ```{r}
 bankChurn <- read.csv(file = 'Churn_Modelling.csv')
@@ -32,6 +35,10 @@ bankChurn$Churn = ifelse(bankChurn$Churn == 1, "Yes", "No")
 bankChurn$Churn = as.factor(bankChurn$Churn)
 dim(bankChurn)
 ```
+
+# Exploratory Data Analysis
+
+## Tenure against Churn
 
 ```{r}
 tenureCounts <- table(bankChurn$Tenure)
@@ -66,6 +73,8 @@ boxplot(
   )
 ```
 
+## Age against Churn
+
 ```{r}
 # age distribution
 hist(
@@ -87,6 +96,8 @@ boxplot(
   ylab="Age"
   )
 ```
+
+## Balance against Churn
 
 ```{r}
 # balance distribution
@@ -110,6 +121,8 @@ boxplot(
   )
 ```
 
+## Salary against Churn
+
 ```{r}
 # salary distribution
 hist(
@@ -132,6 +145,8 @@ boxplot(
   )
 ```
 
+## Activity against Churn
+
 ```{r}
 # percentage Churn against is_active
 isActive <- bankChurn %>% count(Churn, IsActiveMember)
@@ -142,7 +157,7 @@ ggplot(isActive, aes(fill=Churn, y=n, x=IsActiveMember))+
   scale_fill_manual(values=c("skyblue", scales::alpha("red", .5)))
 ```
 
-
+## Number of Products against Churn
 
 ```{r}
 numProdCounts <- table(bankChurn$NumOfProducts)
@@ -165,6 +180,11 @@ ggplot(numProducts, aes(fill=Churn, y=n, x=NumOfProducts))+
   theme(plot.title = element_text(hjust = 0.5))+
   scale_fill_manual(values=c("skyblue", scales::alpha("red", .5)))
 ```
+
+# Training
+
+## Train-test-split
+
 ```{r}
 # train test split
 idx = createDataPartition(bankChurn$Churn, p=0.7, list=FALSE)
@@ -180,6 +200,8 @@ test$Churn = as.factor(test$Churn)
 dim(train); dim(test)
 ```
 
+## Logistic Regression
+
 ```{r}
 # logistic regression to predict churn
 logreg = glm(Churn ~ ., 
@@ -188,10 +210,16 @@ logreg = glm(Churn ~ .,
              )
 print(summary(logreg))
 ```
+
+### Feature importance using deviance
+
 ```{r}
 # feature importance: the steeper the drop in deviance the more important the feature
 anova(logreg, test="Chisq")
 ```
+
+### Accuracy
+
 ```{r}
 # evaluating logistic regression model against test data
 
@@ -200,17 +228,26 @@ logreg.pred <- ifelse(logreg.pred.score > 0.5,1,0)
 misclassError <- mean(logreg.pred != test$Churn)
 print(paste('Logistic Regression Accuracy',1-misclassError))
 ```
+
+### Confusion Matrix
+
 ```{r}
 print("Confusion Matrix for Logistic Regression")
 table(Predicted = logreg.pred, Actual = test$Churn)
 ```
+
+### ROC, PRC curves
+
 ```{r}
 precrec.logreg <- evalmod(scores = logreg.pred.score, labels = test$Churn)
 print(precrec.logreg)
 ```
+
 ```{r}
 autoplot(precrec.logreg)
 ```
+
+## Decision Tree
 
 ```{r}
 cart <- rpart(Churn ~ ., 
@@ -220,6 +257,9 @@ cart <- rpart(Churn ~ .,
               )
 plotcp(cart)
 ```
+
+### Optimisation of CP value
+
 ```{r}
 CVerror.cap <- cart$cptable[which.min(cart$cptable[,"xerror"]), "xerror"] + cart$cptable[which.min(cart$cptable[,"xerror"]), "xstd"]
 
@@ -233,12 +273,15 @@ while (cart$cptable[i,j] > CVerror.cap) {
 cp.opt = ifelse(i > 1, sqrt(cart$cptable[i,1] * cart$cptable[i-1,1]), 1)
 ```
 
+### Feature importance
+
 ```{r}
 cart.opt <- prune(cart, cp = cp.opt)
 cart.opt$variable.importance
 
 ```
 
+### Accuracy
 
 ```{r}
 tree.pred <- predict(cart.opt, test, type="class")
@@ -246,18 +289,27 @@ tree.pred.scores <- predict(cart.opt, test, type="prob")
 table.pred <- table(Predicted = tree.pred, Actual = test$Churn)
 print(paste('Decision Tree Accuracy',sum(diag(table.pred))/sum(table.pred)))
 ```
+
+### Confusion Matrix
+
 ```{r}
 # Note: accuracy is 80% because of unbalanced dataset; most data points have Churn = 0. From the confusion matrix, we can see that there are a lot of false negatives
 print("Confusion Matrix for Decision Tree"); table(Predicted = tree.pred, Actual = test$Churn)
 ```
 
+### ROC, PRC curves
+
 ```{r}
 precrec.tree <- evalmod(scores = tree.pred.scores[, 2], labels = test$Churn)
 print(precrec.tree)
 ```
+
 ```{r}
 autoplot(precrec.tree)
 ```
+
+## Random Forest
+
 ```{r}
 rf <- randomForest(Churn ~ ., data = train, proximity = TRUE, type='classification')
 
@@ -266,12 +318,17 @@ rf <- randomForest(Churn ~ ., data = train, proximity = TRUE, type='classificati
 ```{r}
 rf
 ```
+
+### OOB error plot
+
 ```{r}
 # model based on err.rate matrix: [OOB, No, Yes]
 oob.error.data <- data.frame(Trees=rep(1:nrow(rf$err.rate), times=3), Type=rep(c("OOB", "0", "1"), each=nrow(rf$err.rate)), Error=c(rf$err.rate[,"OOB"], rf$err.rate[,"0"], rf$err.rate[,"1"]))
 
 ggplot(data=oob.error.data, aes(x=Trees, y=Error))+geom_line(aes(color=Type))
 ```
+
+### Optimisation of no. of variable in each internal node
 
 ```{r}
 # optimize no. of variables at each internal node in tree
@@ -291,10 +348,13 @@ oob.values
 
 rfmodeloptim <- randomForest(Churn ~ ., data = train, mtry=2, proximity = TRUE, type='classification')
 ```
+
 ```{r}
 rfmodeloptim
 # error rate reduced
 ```
+
+### Accuracy
 
 ```{r}
 rf.pred <- predict(rfmodeloptim, test, type="response")
@@ -302,9 +362,14 @@ rf.pred.scores <- predict(rfmodeloptim, test, type="prob")
 table.rf.pred <- table(Predicted = rf.pred, Actual = test$Churn)
 print(paste('Random Forest Accuracy',sum(diag(table.rf.pred))/sum(table.rf.pred)))
 ```
+
+### Confusion Matrix
+
 ```{r}
 print("Confusion Matrix for Random Forest"); table(Predicted = rf.pred, Actual = test$Churn)
 ```
+
+### ROC, PRC curves
 
 ```{r}
 precrec.rf <- evalmod(scores = rf.pred.scores[, 2], labels = test$Churn)
@@ -316,6 +381,7 @@ print(precrec.rf)
 autoplot(precrec.rf)
 ```
 
+## Feature Importances for all models
 
 ```{r}
 imp.logreg <- varImp(logreg, scale = FALSE)
